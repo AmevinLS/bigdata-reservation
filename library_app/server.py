@@ -38,7 +38,7 @@ class MakeReservationHandler(BaseHandler):
         if result.applied:
             self.write({"status": "success", "reservation_id": str(reservation_id)})
         else:
-            self.write({"status": "already_reserved"})
+            raise tornado.web.HTTPError(400, "Book already resered")
 
 
 class UpdateReservationHandler(BaseHandler):
@@ -75,7 +75,7 @@ class ViewReservationHandler(BaseHandler):
                 }
             )
         else:
-            self.write({"status": "not found"})
+            raise tornado.web.HTTPError(400, "Book not found")
 
 
 class ListReservationHandler(BaseHandler):
