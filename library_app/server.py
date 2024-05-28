@@ -1,33 +1,16 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 import uvicorn
 
 from uuid import uuid4
 from datetime import datetime
-from dataclasses import dataclass
 
 from cassandra.cluster import Cluster  # type: ignore
-from cassandra.query import PreparedStatement  # type: ignore
-
-
-@dataclass
-class PreparedStatements:
-    select_reservation: PreparedStatement
-    insert_reservation: PreparedStatement
 
 
 RESERVATION_PER_USER_LIMIT = 100
 
 cluster = Cluster(["127.0.0.1", "127.0.0.2"], port=9042)
 db = cluster.connect("library")
-
-prep_statements = PreparedStatements(
-    select_reservation=db.prepare("SELECT * FROM reservations WHERE book_id = ?;"),
-    insert_reservation=db.prepare(
-        "INSERT INTO reservations (book_id, customer_id, reservation_date, reservation_id) "
-        "VALUES (?, ?, ?, ?) "
-        "IF NOT EXISTS;"
-    ),
-)
 
 
 app = FastAPI()
@@ -38,21 +21,62 @@ async def make_reservation(book_id: int, customer_id: int):
     reservation_id = uuid4()
     reservation_date = int(datetime.now().timestamp() * 1000)
 
-    future = db.execute_async(
-        prep_statements.insert_reservation,
-        (book_id, customer_id, reservation_date, reservation_id),
-    )
+    # Insert LWT
+    # future = db.execute_async(
+    #     prep_statements.insert_reservation_lwt,
+    #     (book_id, customer_id, reservation_date, reservation_id),
+    # )
+    # result = future.result().one()
+    # if not result.applied:
+    #     # future = db.execute_async(prep_statements.decrement_customer)
+    #     # result = future.result().one()  # Possible comment this to increase performance
+    #     raise HTTPException(400, "Book already reserved.")
 
-    result = future.result().one()
-    if result.applied:
-        return {"status": "success", "reservation_id": str(reservation_id)}
-    else:
+    # Check if reservation already exists for book
+    prev_reservs = (
+        db.execute_async(
+            "SELECT * FROM reservations_by_book_id WHERE book_id = %s;", (book_id,)
+        )
+        .result()
+        .all()
+    )
+    if len(prev_reservs) > 0:
         raise HTTPException(400, "Book already reserved")
+
+    # Insert reservation
+    db.execute_async(
+        "INSERT INTO reservations_by_book_id (book_id, customer_id, reservation_id, reservation_date) VALUES (%s, %s, %s, %s);",
+        (book_id, customer_id, reservation_id, reservation_date),
+    ).result()
+
+    # Check if the reservation in the table is ours
+    new_reserv = (
+        db.execute_async(
+            "SELECT * FROM reservations_by_book_id WHERE book_id = %s;", (book_id,)
+        )
+        .result()
+        .one()
+    )
+    if new_reserv.reservation_id != reservation_id:
+        raise HTTPException(400, "Book already reserved")
+
+    db.execute_async(
+        "INSERT INTO reservations_by_id (book_id, customer_id, reservation_id, reservation_date) VALUES (%s, %s, %s, %s);",
+        (book_id, customer_id, reservation_id, reservation_date),
+    ).result()
+    db.execute_async(
+        "INSERT INTO reservations_by_customer_id (book_id, customer_id, reservation_id, reservation_date) VALUES (%s, %s, %s, %s);",
+        (book_id, customer_id, reservation_id, reservation_date),
+    ).result()
+
+    return {"status": "success", "reservation_id": str(reservation_id)}
 
 
 @app.get("/view_reservation")
 async def view_reservation(book_id: int):
-    future = db.execute_async(prep_statements.select_reservation, (book_id,))
+    future = db.execute_async(
+        "SELECT * FROM reservations_by_book_id WHERE book_id = %s;", (book_id,)
+    )
     result = future.result().one()
 
     if result:
@@ -67,9 +91,22 @@ async def view_reservation(book_id: int):
 
 
 @app.get("/list_reservations")
-async def list_reservations():
-    future = db.execute_async("SELECT * FROM reservations;")
-    result = future.result().all()
+async def list_reservations(customer_id: int | None = None):
+    if customer_id is not None:
+        result = (
+            db.execute_async(
+                "SELECT * FROM reservations_by_customer_id WHERE customer_id = %s;",
+                (customer_id,),
+            )
+            .result()
+            .all()
+        )
+    else:
+        result = (
+            db.execute_async("SELECT * FROM reservations_by_customer_id;")
+            .result()
+            .all()
+        )
     reservations = []
     for reservation in result:
         reservations.append(
@@ -85,8 +122,10 @@ async def list_reservations():
 
 @app.post("/clear")
 async def clear():  # db: Session = Depends(get_db)):
-    db.execute("TRUNCATE TABLE reservations;")
-    db.execute("TRUNCATE TABLE customers;")
+    db.execute("TRUNCATE TABLE reservations_by_book_id;")
+    db.execute("TRUNCATE TABLE reservations_by_id;")
+    db.execute("TRUNCATE TABLE reservations_by_customer_id;")
+    return Response(status_code=200, content="Successfully cleared tables")
 
 
 uvicorn.run(app, port=8888, log_level="info")

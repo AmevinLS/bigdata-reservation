@@ -1,7 +1,6 @@
 # type: ignore
 import os
 
-from cassandra.query import BatchStatement
 from cassandra.cluster import (
     Cluster,
     Session,
@@ -10,6 +9,7 @@ from cassandra.cluster import (
     ConsistencyLevel,
 )
 import time
+import logging
 
 
 KEYSPACE_NAME = os.environ.get("KEYSPACE_NAME", "library")
@@ -57,26 +57,20 @@ def main():
         f"DROP KEYSPACE IF EXISTS {KEYSPACE_NAME};",
         f"CREATE KEYSPACE IF NOT EXISTS {KEYSPACE_NAME} "
         "WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 2};",
-        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.books "
-        "(book_id int, title text, PRIMARY KEY(book_id));",
-        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.reservations "
+        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.reservations_by_book_id "
         "(book_id int, customer_id int, reservation_id uuid, reservation_date timestamp, PRIMARY KEY(book_id));",
-        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.customers "
-        "(customer_id int, num_reservations int, PRIMARY KEY(customer_id, num_reservations));",
+        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.reservations_by_id "
+        "(book_id int, customer_id int, reservation_id uuid, reservation_date timestamp, PRIMARY KEY(reservation_id));",
+        f"CREATE TABLE IF NOT EXISTS {KEYSPACE_NAME}.reservations_by_customer_id "
+        "(book_id int, customer_id int, reservation_id uuid, reservation_date timestamp, PRIMARY KEY(customer_id, book_id));",
     ]
 
     for query in queries:
         session.execute(query)
+        logging.info(f"Executed query: {query}")
 
     ensure_schemas_equality(nodes, verbose=False)
-
-    insert = BatchStatement()
-    for i in range(100):
-        insert.add(
-            f"INSERT INTO {KEYSPACE_NAME}.books (book_id, title) VALUES (%s, 'Lolkek');",
-            (i,),
-        )
-    session.execute(insert)
+    logging.info("Schema equality ensured")
 
 
 if __name__ == "__main__":
