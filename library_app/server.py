@@ -15,6 +15,9 @@ db = cluster.connect("library")
 select_count_reservations = db.prepare(
     "SELECT COUNT(*) FROM reservations_by_customer_id WHERE customer_id = ?;"
 )
+select_reservation_by_book_id = db.prepare(
+    "SELECT * FROM reservations_by_book_id WHERE book_id = ?;"
+)
 insert_reservation_by_book_id = db.prepare(
     "INSERT INTO reservations_by_book_id (book_id, customer_id, reservation_id, reservation_date) "
     "VALUES (?, ?, ?, ?) IF NOT EXISTS;",
@@ -25,6 +28,11 @@ insert_reservation_by_id = db.prepare(
 insert_reservation_by_customer_id = db.prepare(
     "INSERT INTO reservations_by_customer_id (book_id, customer_id, reservation_id, reservation_date) VALUES (?, ?, ?, ?);"
 )
+select_reservation_by_customer_id = db.prepare(
+    "SELECT * FROM reservations_by_customer_id WHERE customer_id = ?;"
+)
+select_all_reservations = db.prepare("SELECT * FROM reservations_by_customer_id;")
+
 
 app = FastAPI()
 
@@ -44,7 +52,7 @@ async def make_reservation(book_id: int, customer_id: int):
         .one()
     )
     if count_result.count >= RESERVATION_PER_USER_LIMIT:
-        raise HTTPException(401, "Reservation limit reached")
+        raise HTTPException(429, "Reservation limit reached")
 
     # Insert LWT
     result = (
@@ -56,7 +64,7 @@ async def make_reservation(book_id: int, customer_id: int):
         .one()
     )
     if not result.applied:
-        raise HTTPException(400, "Book already reserved.")
+        raise HTTPException(409, "Book already reserved.")
 
     # Check if reservation already exists for book
     # prev_reservs = (
@@ -116,7 +124,7 @@ async def update_reservation(book_id: int, customer_id: int):
     )
     if not result.applied:
         raise HTTPException(
-            402, "Cannot update reservation with earlier 'reservation_date'"
+            400, "Cannot update reservation with earlier 'reservation_date'"
         )
 
     reserv_result = (
@@ -148,9 +156,7 @@ async def update_reservation(book_id: int, customer_id: int):
 
 @app.get("/view_reservation")
 async def view_reservation(book_id: int):
-    future = db.execute_async(
-        "SELECT * FROM reservations_by_book_id WHERE book_id = %s;", (book_id,)
-    )
+    future = db.execute_async(select_reservation_by_book_id, (book_id,))
     result = future.result().one()
 
     if result:
@@ -161,7 +167,7 @@ async def view_reservation(book_id: int):
             "reservation_date": str(result.reservation_date),
         }
     else:
-        raise HTTPException(400, f"No reservation for book with book_id={book_id}")
+        raise HTTPException(404, f"No reservation for book with book_id={book_id}")
 
 
 @app.get("/list_reservations")
@@ -169,18 +175,14 @@ async def list_reservations(customer_id: int | None = None):
     if customer_id is not None:
         result = (
             db.execute_async(
-                "SELECT * FROM reservations_by_customer_id WHERE customer_id = %s;",
+                select_reservation_by_customer_id,
                 (customer_id,),
             )
             .result()
             .all()
         )
     else:
-        result = (
-            db.execute_async("SELECT * FROM reservations_by_customer_id;")
-            .result()
-            .all()
-        )
+        result = db.execute_async(select_all_reservations).result().all()
     reservations = []
     for reservation in result:
         reservations.append(
@@ -196,9 +198,10 @@ async def list_reservations(customer_id: int | None = None):
 
 @app.post("/clear")
 async def clear():
-    db.execute("TRUNCATE TABLE reservations_by_book_id;")
-    db.execute("TRUNCATE TABLE reservations_by_id;")
-    db.execute("TRUNCATE TABLE reservations_by_customer_id;")
+    timeout = 30
+    db.execute("TRUNCATE TABLE reservations_by_book_id;", timeout=timeout)
+    db.execute("TRUNCATE TABLE reservations_by_id;", timeout=timeout)
+    db.execute("TRUNCATE TABLE reservations_by_customer_id;", timeout=timeout)
     return Response(status_code=200, content="Successfully cleared tables")
 
 
