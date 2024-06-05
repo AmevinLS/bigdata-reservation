@@ -3,6 +3,7 @@ const axios = require("axios");
 
 
 async function testOneCustomerSameRequest(request, num_requests) {
+    console.log("Started single-customer same-request stress test...");
     const result = await autocannon({
         url: "http://localhost:8888/view_reservation?book_id=0",
         connections: 1,
@@ -164,19 +165,32 @@ async function testTwoCustomersReservations(num_books) {
 
 const num_books = 1000;
 
-// Stress test 1
-const num_requests = 1000;
-testOneCustomerSameRequest(
-    {
-        method: "GET",
-        path: "/view_reservation?book_id=0"
-    },
-    num_requests
-)
+switch (Number(process.argv[2])) {
+    case 1:
+        // Stress test 1
+        const num_requests = 10000;
+        testOneCustomerSameRequest(
+            {
+                method: "GET",
+                path: "/view_reservation?book_id=0"
+            },
+            num_requests
+        );
+        break;
+    case 2:
+        // Stress test 2
+        const num_requests_each = 1000;
+        testTwoCustomersRandomRequests(num_books, num_requests_each);
+        break;
+    case 3:
+        // Stress test 3
+        testTwoCustomersReservations(num_books);
+        break;
 
-// Stress test 2
-// const num_requests_each = 1000;
-// testTwoCustomersRandomRequests(num_books, num_requests_each);
+}
 
-// Stress test 3
-// testTwoCustomersReservations(num_books);
+
+
+
+
+
