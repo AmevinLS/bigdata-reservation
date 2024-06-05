@@ -163,7 +163,7 @@ async function testTwoCustomersReservations(num_books) {
 }
 
 
-const num_books = 1000;
+const num_books = 20;
 
 switch (Number(process.argv[2])) {
     case 1:

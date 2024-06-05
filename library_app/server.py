@@ -7,7 +7,7 @@ from datetime import datetime
 from library import LibraryWrapper
 
 
-RESERVATION_PER_USER_LIMIT = 500
+RESERVATION_PER_USER_LIMIT = 10
 
 library = LibraryWrapper()
 
@@ -62,6 +62,12 @@ async def view_reservation(book_id: int):
 async def list_reservations(customer_id: int | None = None):
     reservations = await library.get_reservations(customer_id)
     return {"reservations": reservations}
+
+
+@app.get("/books")
+async def get_books(only_available: bool = False):
+    books = await library.get_books(only_available)
+    return {"books": books}
 
 
 @app.post("/clear")

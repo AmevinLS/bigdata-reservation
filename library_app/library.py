@@ -31,10 +31,23 @@ class LibraryWrapper:
         )
 
     async def get_books(self, only_available: bool = False):
+        books_result = self.db.execute_async("SELECT * FROM books;").result().all()
         if only_available:
-            books = self.db.execute_async()
+            books = [
+                {"book_id": book.book_id, "title": book.title, "author": book.author}
+                for book in books_result
+                if book.reservation_id is None
+            ]
         else:
-            books = self.db.execute_async("SELECT * FROM books;").result().all()
+            books = [
+                {
+                    "book_id": book.book_id,
+                    "title": book.title,
+                    "author": book.author,
+                    "reservation_id": book.reservation_id,
+                }
+                for book in books_result
+            ]
         return books
 
     async def get_reservation_count(self, customer_id: int) -> int:
@@ -73,6 +86,10 @@ class LibraryWrapper:
             self.db.execute_async(
                 self.insert_reservation_by_customer_id,
                 (book_id, customer_id, reservation_id, reservation_date),
+            )
+            self.db.execute_async(
+                "UPDATE books SET reservation_id = %s WHERE book_id = %s;",
+                (reservation_id, book_id),
             )
 
         return applied
