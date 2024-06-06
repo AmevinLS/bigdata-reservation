@@ -1,0 +1,7 @@
+numpy
+pandas
+fastapi
+uvicorn
+typer
+rich
+cassandra-driver

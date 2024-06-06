@@ -5,6 +5,11 @@
 
 ## Cassandra tables:
 
+- `books`
+    - `book_id int`
+    - `title text`
+    - `author text`
+    - `reservation_id uuid`
 - `reservations_by_id`
     - `book_id int` 
     - `customer_id int`
