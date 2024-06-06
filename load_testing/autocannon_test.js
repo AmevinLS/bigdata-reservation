@@ -179,7 +179,7 @@ switch (Number(process.argv[2])) {
         break;
     case 2:
         // Stress test 2
-        const num_requests_each = 1000;
+        const num_requests_each = 10000;
         testTwoCustomersRandomRequests(num_books, num_requests_each);
         break;
     case 3:

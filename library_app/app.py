@@ -63,7 +63,7 @@ def view_reservation(book_id: int):
 
 @app.command()
 def update_reservation(customer_id: int, book_id: int):
-    response = requests.get(
+    response = requests.post(
         f"{SERVER_URL}/update_reservation",
         params={"customer_id": customer_id, "book_id": book_id},
     )

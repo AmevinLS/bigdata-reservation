@@ -72,7 +72,7 @@ async def get_books(only_available: bool = False):
 
 @app.post("/clear")
 async def clear():
-    library.clear_reservations()
+    await library.clear_reservations()
     return Response(status_code=200, content="Successfully cleared tables")
 
 

@@ -172,8 +172,13 @@ class LibraryWrapper:
             )
         return reservations
 
-    def clear_reservations(self):
+    async def clear_reservations(self):
         timeout = 30
         self.db.execute("TRUNCATE TABLE reservations_by_book_id;", timeout=timeout)
         self.db.execute("TRUNCATE TABLE reservations_by_id;", timeout=timeout)
         self.db.execute("TRUNCATE TABLE reservations_by_customer_id;", timeout=timeout)
+        book_ids = tuple([str(book["book_id"]) for book in await self.get_books()])
+        self.db.execute(
+            f"UPDATE books SET reservation_id = null WHERE book_id IN ({','.join(book_ids)});",
+            timeout=timeout,
+        )
