@@ -125,7 +125,13 @@ async function testTwoCustomersRandomRequests(num_books, num_requests_each) {
 
 
 function createConsecutiveMakeRequests(customer_id, num_books) {
-    const requests = [...Array(num_books).keys()].map(book_id => {
+    const shuffle = (array) => {
+        return array.sort(() => Math.random()-0.5);
+    }
+
+    const book_ids = [...Array(num_books).keys()];
+    const book_ids_shuffled = shuffle(book_ids);
+    const requests = book_ids_shuffled.map(book_id => {
         return {
             method: "POST",
             path: `/make_reservation?book_id=${book_id}&customer_id=${customer_id}`
