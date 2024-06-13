@@ -15,6 +15,24 @@ console = Console()
 
 
 @app.command()
+def list_books(only_available: bool = False):
+    response = requests.get(
+        f"{SERVER_URL}/books",
+        params={"only_available": only_available},
+    )
+    if response.ok:
+        books_df = pd.DataFrame(response.json()["books"])
+        qualifier = "only available" if only_available else "all"
+        console.print(
+            f"Here is the list of ({qualifier}) books:",
+            style=SUCCESS_STYLE,
+        )
+        console.print(books_df)
+    else:
+        console.print(response.json()["detail"], style=ERROR_STYLE)
+
+
+@app.command()
 def make_reservation(customer_id: int, book_id: int):
     response = requests.post(
         f"{SERVER_URL}/make_reservation",
@@ -45,7 +63,7 @@ def view_reservation(book_id: int):
 
 @app.command()
 def update_reservation(customer_id: int, book_id: int):
-    response = requests.get(
+    response = requests.post(
         f"{SERVER_URL}/update_reservation",
         params={"customer_id": customer_id, "book_id": book_id},
     )

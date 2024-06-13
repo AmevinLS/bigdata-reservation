@@ -7,8 +7,6 @@ from datetime import datetime
 from library import LibraryWrapper
 
 
-RESERVATION_PER_USER_LIMIT = 500
-
 library = LibraryWrapper()
 
 app = FastAPI()
@@ -20,11 +18,13 @@ async def make_reservation(book_id: int, customer_id: int):
     reservation_date_obj = datetime.now()
     reservation_date = int(reservation_date_obj.timestamp() * 1000)
 
-    count_result = await library.get_reservation_count(customer_id)
-    if count_result >= RESERVATION_PER_USER_LIMIT:
-        raise HTTPException(429, "Reservation limit reached")
+    # count_result = await library.get_reservation_count(customer_id)
+    # if count_result >= RESERVATION_PER_USER_LIMIT:
+    #     raise HTTPException(429, "Reservation limit reached")
 
-    # Insert LWT
+    if await library.get_reservation(book_id) is not None:
+        raise HTTPException(409, "Book already reserved.")
+
     applied = await library.insert_reservation(
         book_id, customer_id, reservation_id, reservation_date
     )
@@ -64,9 +64,15 @@ async def list_reservations(customer_id: int | None = None):
     return {"reservations": reservations}
 
 
+@app.get("/books")
+async def get_books(only_available: bool = False):
+    books = await library.get_books(only_available)
+    return {"books": books}
+
+
 @app.post("/clear")
 async def clear():
-    library.clear_reservations()
+    await library.clear_reservations()
     return Response(status_code=200, content="Successfully cleared tables")
 
 

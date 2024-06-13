@@ -3,6 +3,7 @@
 This Library app is a FastAPI server, which connects to a Cassandra database. There is also a CLI app provided.
 
 This is a 'library' system, where you can:
+- List either all books in the library, or only the available ones
 - Reserve a book for a customer by `book_id` and `customer_id`
 - View a reservation by it's `reservation_id` (which is automatically generated and returned after reserving a book)
 - Update a reservation (re-reserve it for the same customer)
@@ -19,6 +20,7 @@ This is a 'library' system, where you can:
     ```bash
     python library_app/init_cassandra.py
     ```
+    *(This can take some time)*
 3. **Start FastAPI server**
     ```bash
     python library_app/server.py
